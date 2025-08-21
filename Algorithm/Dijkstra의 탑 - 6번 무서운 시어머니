@@ -1,0 +1,103 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <iostream>
+#include <queue>
+#include <vector>
+
+using namespace std;
+
+struct Point 
+{
+	int y;
+	int x;
+	int cost;
+};
+struct cmp
+{
+	bool operator()(Point a, Point b)
+	{
+		return a.cost > b.cost;
+	}
+};
+int n, m,en;
+int map[1001][1001];
+int dist[1001][1001];
+int dy[] = { -1,1,0,0 };
+int dx[] = { 0,0,-1,1 };
+void dijkstra(Point st)
+{
+	priority_queue<Point, vector<Point>, cmp > pq;
+	pq.push(st);
+	while (!pq.empty())
+	{
+		Point cp = pq.top();
+		pq.pop();
+		
+		if (dist[cp.y][cp.x] < cp.cost)
+		{
+			continue;
+		}
+		
+		for (int i = 0; i < 4; i++)
+		{
+			Point np;
+			np.y = cp.y + dy[i];
+			np.x = cp.x + dx[i];
+			if (np.y<0 || np.x<0 || np.y >= n || np.x>=n)
+			{
+				continue;
+			}
+			if (map[np.y][np.x] == -1)
+			{
+				continue;
+			}
+			np.cost = cp.cost + map[np.y][np.x];
+
+			if (np.cost < dist[np.y][np.x])
+			{
+				dist[np.y][np.x] = np.cost;
+				pq.push(np);
+			}
+
+
+		}
+
+	}
+}
+
+int main()
+{
+	Point st;
+	cin >> st.y >> st.x;
+	cin >> n ;
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < n; j++)
+		{
+			cin >> map[i][j];
+			dist[i][j] = 21e8;
+		}
+	}
+
+	st.cost = map[st.y][st.x];
+
+	dijkstra(st);
+	int max_val = 0;
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < n; j++)
+		{
+			if (max_val < dist[i][j])
+			{
+				if(dist[i][j]<21e7)
+				{
+					max_val = dist[i][j];
+				}
+				
+			}
+		}
+	}
+	cout << max_val << endl;
+
+	return 0;
+
+}
