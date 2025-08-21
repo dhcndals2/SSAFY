@@ -1,0 +1,101 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <iostream>
+#include <queue>
+#include <vector>
+
+using namespace std;
+
+struct Point 
+{
+	int to;
+	int cost;
+};
+struct cmp
+{
+	bool operator()(Point a, Point b)
+	{
+		return a.cost > b.cost;
+	}
+};
+int n, m,en;
+int dist[10001];
+
+vector<Point> v[10001];
+
+void dijkstra(int st)
+{
+	priority_queue<Point, vector<Point>, cmp > pq;
+	pq.push({st, 0});
+
+	while (!pq.empty())
+	{
+		Point cp = pq.top();
+		pq.pop();
+		int cur = cp.to;
+
+		if (dist[cp.to] < cp.cost)
+		{
+			continue;
+		}
+		for (int i = 0; i < v[cur].size(); i++)
+		{
+			Point np;
+			np.to = v[cur][i].to;
+			int next = np.to;
+			
+			np.cost = cp.cost +v[cur][i].cost;
+			if (np.cost < dist[next])
+			{
+				dist[next] = np.cost;
+				pq.push(np);
+			}
+
+
+		}
+
+	}
+}
+
+int main()
+{
+	cin >> n >> m>>en;
+	for (int i = 0; i < m; i++)
+	{
+		int from, to, cost;
+		cin >> from >> to >> cost;
+		v[from].push_back({ to,cost });//도착지 이므로 출발 도착 반대로 뒤집기
+		v[to].push_back({ from,cost });//도착지 이므로 출발 도착 반대로 뒤집기
+	}
+	for (int i =0; i <n+1; i++)
+	{
+		dist[i] = 21e8;
+	}
+	
+	dist[1] = 0;
+	dijkstra(1);
+
+	int result = dist[n];
+	for (int i = 0; i < n + 1; i++)
+	{
+
+		dist[i] = 21e8;
+
+	}
+	
+
+	dist[en] = 0;
+	dijkstra(en);
+	
+	int result2 = dist[n] + dist[1];
+
+	if (result == result2)
+	{
+		cout << "OKAY" << endl;
+	}
+	else
+	{
+		cout << "SORRY" << endl;
+	}
+	return 0;
+
+}
