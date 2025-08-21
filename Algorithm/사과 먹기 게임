@@ -1,0 +1,113 @@
+#include <iostream>
+#include <cmath>
+#include <algorithm>
+#include <queue>
+#include <cstring>
+
+using namespace std;
+
+//우회전을 위한 상우하좌
+int dy[] = { -1,0,1,0 };
+int dx[] = { 0,1,0,-1 };
+int n;
+int map[11][11];
+int k;
+int k_count = 1;
+const int dir_change[2][4] = { {0,1,2,3},
+						{1,2,3,0} };
+int min_dir = 10000;
+void reset()
+{
+	memset(map, 0, sizeof(map));
+	n = 0;
+	k = 0;
+	k_count =1;
+	min_dir = 10000;
+}
+
+struct Point
+{
+	int y;
+	int x;
+	int dir;
+	int turn_count;
+};
+int dir_change_func(int dir)	//우회전 함수
+{
+	dir = dir_change[1][dir];
+	return dir;
+}
+
+Point bfs(Point st,Point en)
+{
+	queue<Point> q;
+	q.push(st);
+	int dir_count = 0;
+
+	while (!q.empty())
+	{
+		Point cp = q.front();
+		q.pop();
+
+		Point np = { cp.y + dy[cp.dir],cp.x + dx[cp.dir],cp.dir,cp.turn_count };
+		if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= n)
+		{
+			continue;
+		}
+		if (map[np.y][np.x] == k_count)
+		{
+			return np;
+		}
+
+		for (int i = 0; i < 2; i++)
+		{
+			if (i == 1)
+			{
+				np.dir = dir_change_func(np.dir);
+				np.turn_count++;
+			}
+			q.push(np);
+		}
+	}
+}
+int main()
+{
+	int t;
+	cin >> t;
+	for (int test = 0; test < t; test++)
+	{
+		reset();
+		cin >> n;
+		for (int i = 0; i < n; i++)
+		{
+			for (int j = 0; j < n; j++)
+			{
+				cin >> map[i][j];
+				k = max(k, map[i][j]);
+			}
+		}
+		Point st;
+		Point en = { 0,0,0,10000 };
+		st.y = 0;
+		st.x = 0;
+		st.dir = 1;
+		st.turn_count = 0;
+		int result = 0;
+		for (int i = 0; i < k; i++)
+		{
+
+			en = bfs(st, en);
+			min_dir = 10000;
+			k_count++;
+			result += en.turn_count;
+			st.y = en.y;
+			st.x = en.x;
+			st.dir = en.dir;
+			st.turn_count = 0;
+
+		}
+		cout << "#" << test + 1 << " " << result << endl;
+
+	}
+	return 0;
+}
