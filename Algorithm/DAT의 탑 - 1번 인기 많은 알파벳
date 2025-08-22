@@ -1,0 +1,31 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+
+using namespace std;
+
+int main() {
+	string s;
+	int a[200] = {};
+
+	cin >> s;
+	int b = s.length();
+
+	for (int i = 0; i < b; i++)
+	{
+		a[s[i]]++;
+	}
+	int max = 0;
+	int maxindex = 0;
+	for (int i = 0; i < 200; i++)
+	{
+		if (a[i] > max)
+		{
+			max = a[i];
+			maxindex = i;
+		}
+	}
+	cout << char(maxindex);
+}
