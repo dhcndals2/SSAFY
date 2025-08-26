@@ -1,0 +1,108 @@
+#include <iostream>
+#include <queue>
+#include <cstring>
+#include <cmath>
+#include <set>
+
+using namespace std;
+
+set<pair<int, int>> eaten;
+
+struct Point
+{
+	int y, x;
+};
+
+int dy[] = { -1,1,0,0 };
+int dx[] = { 0,0,-1,1 };
+
+int n;
+int map[51][51];
+
+Point st;
+
+void input()
+{
+	cin >> n;
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < n; j++)
+		{
+			cin >> map[i][j];
+			if (map[i][j] == 2)//0빈공간, 1 쫄, 2포
+			{
+				st.y = i;
+				st.x = j;
+				map[i][j] = 0;
+			}
+		}
+	}
+}
+
+void reset()
+{
+	memset(map, 0, sizeof(map));
+	eaten.clear();
+}
+
+void dfs(int lev,Point cp)
+{
+	if (lev == 3)
+	{
+		return;
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		Point np = cp;
+		bool jump = false;
+		while (1)
+		{
+			np.y += dy[i];
+			np.x += dx[i];
+
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= n) break;
+		
+			if (!jump)
+			{
+				if (map[np.y][np.x] == 1)
+				{
+					jump = true;
+				}
+			
+			}
+			else
+			{
+				if (map[np.y][np.x] == 0)
+				{
+					dfs(lev+1,np);
+				}
+				else if (map[np.y][np.x] == 1)
+				{
+					eaten.insert({np.y, np.x});
+					map[np.y][np.x] = 0;
+					dfs(lev + 1, np);
+					map[np.y][np.x] = 1;
+					break;
+				}
+
+
+			}
+		}
+	
+	}
+}
+
+int main()
+{
+	int t;
+	cin >> t;
+	for (int test = 0; test < t; test++) {
+		reset();
+		input();
+
+		dfs(0, st);
+		cout <<"#"<<test+1<<" "<< eaten.size() << endl;
+	}
+	return 0;
+
+}
