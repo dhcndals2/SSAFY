@@ -1,0 +1,145 @@
+#include <iostream>
+#include <queue>
+#include <cstring>
+#include <cmath>
+ 
+using namespace std;
+ 
+struct Point
+{
+    int y, x;
+};
+int n, m, c;
+int map[11][11];
+int honey_box_1[11];
+int box[11];
+int max_count;
+int second_max_count;
+int max_y;
+int max_x;
+int final_result;
+int visited[11][11];
+ 
+void input()
+{
+    cin >> n >> m >> c;
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+        {
+            cin >> map[i][j];
+        }
+    }
+}
+ 
+void reset()
+{
+    for (int i = 0; i < 11; i++)
+    {
+        honey_box_1[i] = 0;
+        box[i] = 0;
+ 
+    }
+    max_count = 0;
+}
+ 
+void bfs(Point st, int cost, int index, int lev)
+{
+    if (cost > c)
+    {
+ 
+        return;
+    }
+ 
+    for (int i = index; i < m; i++)
+    {
+        box[lev] = honey_box_1[i];
+        if (cost + honey_box_1[i] <= c)
+        {
+            int result = 0;
+            for (int j = 0; j < lev + 1; j++)
+            {
+                result += box[j] * box[j];
+            }
+            if (max_count < result)
+            {
+                max_count = max(max_count, result);
+                max_y = st.y;
+                max_x = st.x;
+            }
+        }
+        bfs(st, cost + honey_box_1[i], i + 1, lev + 1);
+        box[lev] = 0;
+    }
+}
+ 
+int main()
+{
+ 
+    int t;
+    cin >> t;
+    for (int test = 0; test < t; test++)
+    {
+        for (int i = 0; i < 11; i++)
+        {
+            for (int j = 0; j < 11; j++)
+            {
+                map[i][j] = 0;
+                visited[i][j] = 0;
+            }
+        }
+        reset();
+        input();
+        int first_max_count = 0;
+        int second_max_count = 0;
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = 0; j < n - m + 1; j++)
+            {
+                for (int k = 0; k < m; k++)
+                {
+                    honey_box_1[k] = map[i][j + k];
+                }
+                Point st = { i,j };
+                bfs(st, 0, 0, 0);
+            }
+        }
+ 
+        for (int i = max_x; i < max_x + m; i++)
+        {
+            visited[max_y][i] = 1;
+        }
+        //    cout << max_count << endl;
+            //cout << max_y << "," << max_x << endl;
+        first_max_count = max_count;
+ 
+        reset(); //visited는 뺴고해야함
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = 0; j < n - m + 1; j++)
+            {
+                bool flag = false;
+                for (int k = 0; k < m; k++)
+                {
+                    if (visited[i][j + k] == 1)
+                    {
+                        flag = true;
+                        break;
+                    }
+                    honey_box_1[k] = map[i][j + k];
+                }
+                if (flag)
+                    break;
+                Point st = { i,j };
+                bfs(st, 0, 0, 0);
+            }
+        }
+        //    cout << max_count << endl;
+            //cout << max_y << "," << max_x << endl;
+        second_max_count = max_count;
+        final_result = first_max_count + second_max_count;
+        cout << "#" << test + 1 << " " << final_result << endl;
+    }
+    return 0;
+ 
+}
