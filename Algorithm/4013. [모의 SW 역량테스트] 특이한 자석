@@ -1,0 +1,138 @@
+#include <iostream>
+#include <cmath>
+#include <cstring>
+#include <queue>
+ 
+using namespace std;
+ 
+int map[4][8];
+int dir_true[4];
+ 
+void rotate(int target,int dir)
+{
+    if (dir == 1)
+    {
+        int temp = map[target][7];
+        for (int i = 6; i >=0; i--)
+        {
+            map[target][i + 1] = map[target][i];
+        }
+        map[target][0] = temp;
+    }
+    else if(dir==-1)
+    {
+        int temp = map[target][0];
+        for (int i = 0; i < 7; i++)
+        {
+            map[target][i] = map[target][i+1];
+        }
+        map[target][7] = temp;
+    }
+     
+}
+void reset()
+{
+    memset(dir_true, 0, sizeof(dir_true));
+}
+void rotate_set(int num,int dir)//시작 자석위치, 시작 방향
+{
+    int n = num;
+    while (1)//왼쪽 탐색
+    {
+        n--;
+        if (n < 0)
+        {
+            break;
+        }
+        if (map[n][2] != map[n +1][6])
+        {
+            dir_true[n] = (-1)*dir_true[n+1];
+        }
+        else
+        {
+            break;
+        }
+    }
+    n = num;
+    while (1)
+    {
+        n++;
+        if (n > 3)
+        {
+            break;
+        }
+        if (map[n][6] != map[n - 1][2])
+        {
+            dir_true[n] = (-1)*dir_true[n - 1];
+        }
+        else
+            break;
+    }
+}
+int solve()
+{
+    int ans = 0;
+    if (map[0][0] == 1)
+    {
+        ans += 1;
+    }
+    if (map[1][0] == 1)
+    {
+        ans += 2;
+    }
+    if (map[2][0] == 1)
+    {
+        ans += 4;
+    }
+    if (map[3][0] == 1)
+    {
+        ans += 8;
+    }
+ 
+    return ans;
+}
+int main()
+{
+    int t;
+    cin >> t;
+    for (int test = 0; test < t; test++)
+    {
+        reset();
+        int k;
+        int rotate_IP[21][2];
+        int result = 0;
+        cin >> k;
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = 0; j < 8; j++)
+            {
+                cin >> map[i][j];
+            }
+        }
+        for (int i = 0; i < k; i++)
+        {
+            cin >> rotate_IP[i][0] >> rotate_IP[i][1];
+            rotate_IP[i][0]--;
+        }
+ 
+ 
+ 
+        for (int i = 0; i < k; i++)
+        {
+            dir_true[rotate_IP[i][0]] = rotate_IP[i][1];
+            rotate_set(rotate_IP[i][0], rotate_IP[i][1]);
+ 
+            for (int j = 0; j < 4; j++)
+            {
+                rotate(j, dir_true[j]);
+            }
+ 
+            reset();
+        }
+        result = solve();
+ 
+        cout <<"#"<<test+1<<" "<< result << endl;
+ 
+    }
+ 
+}
