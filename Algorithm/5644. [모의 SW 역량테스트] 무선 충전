@@ -1,0 +1,271 @@
+#include <iostream>
+#include <cstring>
+#include <queue>
+#include <cmath>
+#include <algorithm>
+using namespace std;
+
+struct Point
+{
+	int y, x;
+	int c;
+	int p;
+
+};
+const int dy[] = { 0,-1,0,1,0 };
+const int dx[] = { 0,0,1,0,-1 };
+int t;
+int m, n;
+int a_move[101];
+int b_move[101];
+
+bool flag_a[8];
+bool flag_b[8];
+Point ap[8];
+bool compareByP(const Point &a, const Point &b) {
+	return a.p > b.p;
+}
+void reset()
+{
+	memset(a_move, 0, sizeof(a_move));
+	memset(b_move, 0, sizeof(b_move));
+
+	memset(flag_a, 0, sizeof(flag_a));
+	memset(flag_b, 0, sizeof(flag_b));
+	
+}
+void input()
+{
+	cin >> m >> n;
+	for (int i = 0; i < m; i++)
+	{
+		cin >> a_move[i];
+	}
+	for (int i = 0; i < m; i++)
+	{
+		cin >> b_move[i];
+	}
+	for (int i = 0; i < n; i++)
+	{
+		cin >> ap[i].x >> ap[i].y >> ap[i].c >> ap[i].p;
+		ap[i].x--;
+		ap[i].y--;
+	}
+
+}
+int distance(Point a, Point b)
+{
+	return abs(a.y - b.y) + abs(a.x - b.x);
+}
+
+void charge(Point a, Point b)
+{
+	memset(flag_a, 0, sizeof(flag_a));
+	memset(flag_b, 0, sizeof(flag_b));
+	
+	for (int i = 0; i < n; i++)
+	{
+		if (ap[i].c>=distance(ap[i], a))
+		{
+			flag_a[i] = true;
+		}
+		if (ap[i].c >= distance(ap[i], b))
+		{
+			flag_b[i] = true;
+		}
+	}
+}
+int main()
+{
+	cin >> t;
+	for (int test = 0; test < t; test++)
+	{
+		reset();
+		input();
+
+		sort(ap, ap + 8, compareByP);
+
+		Point st_a = { 0,0 };
+		Point st_b = { 9,9 };
+		int a_result = 0;
+		int b_result = 0;
+
+		charge(st_a, st_b);
+
+
+
+		bool a_flag = true;
+		bool b_flag = true;
+		for (int j = 0; j < n; j++)
+		{
+			bool flagab = false;	//들어올떄마다 1,1같은지 확인
+
+			if (flag_a[j] && flag_b[j])
+			{
+				flagab = true;
+			}
+			if (flag_a[j] != flag_b[j])
+			{
+				if (flag_a[j] && a_flag)
+				{
+					a_result += ap[j].p;
+					for (int k = j + 1; k < n; k++)
+					{
+						if (flag_b[k])
+						{
+							b_result += ap[k].p;
+							break;
+						}
+					}
+					a_flag = false;
+					break;
+				}
+				else if (flag_b[j] && b_flag)
+				{
+					b_result += ap[j].p;
+					for (int k = j + 1; k < n; k++)
+					{
+						if (flag_a[k])
+						{
+							a_result += ap[k].p;
+							break;
+						}
+					}
+					b_flag = false;
+					break;
+				}
+			}
+			else if (flag_a[j] == 1 && flag_b[j] == 1)
+			{
+
+				bool flag = true;
+				for (int k = j + 1; k < n; k++)
+				{
+					if (flag_a[k] || flag_b[k])
+					{
+						if (flag_a[k])
+						{
+
+							a_result += ap[k].p;
+							b_result += ap[j].p;
+						}
+						else
+						{
+
+							a_result += ap[j].p;
+							b_result += ap[k].p;
+
+						}
+						flag = false;
+						break;
+					}
+				}
+				if (flag)
+				{
+					a_result += ap[j].p;
+					break;
+
+				}
+				else
+					break;
+
+			}
+
+		}
+
+
+		/* ``````````````````````````````````````````````*/
+		for (int i = 0; i < m; i++)
+		{
+
+			st_a.y = st_a.y + dy[a_move[i]];
+			st_a.x = st_a.x + dx[a_move[i]];
+			st_b.y = st_b.y + dy[b_move[i]];
+			st_b.x = st_b.x + dx[b_move[i]];
+
+			charge(st_a, st_b);
+
+			bool a_flag = true;
+			bool b_flag = true;
+
+			for (int j = 0; j < n; j++)
+			{
+				bool flagab = false;	//들어올떄마다 1,1같은지 확인
+
+				if (flag_a[j] && flag_b[j])
+				{
+					flagab = true;
+				}
+				if (flag_a[j] != flag_b[j])
+				{
+					if (flag_a[j] && a_flag)
+					{
+						a_result += ap[j].p;
+						for (int k = j + 1; k < n; k++)
+						{
+							if (flag_b[k])
+							{
+								b_result += ap[k].p;
+								break;
+							}
+						}
+						a_flag = false;
+						break;
+					}
+					else if (flag_b[j] && b_flag)
+					{
+						b_result += ap[j].p;
+						for (int k = j + 1; k < n; k++)
+						{
+							if (flag_a[k])
+							{
+								a_result += ap[k].p;
+								break;
+							}
+						}
+						b_flag = false;
+						break;
+					}
+				}
+				else if (flag_a[j] == 1 && flag_b[j] == 1)
+				{
+
+					bool flag = true;
+					for (int k = j + 1; k < n; k++)
+					{
+						if (flag_a[k] || flag_b[k])
+						{
+							if (flag_a[k])
+							{
+
+								a_result += ap[k].p;
+								b_result += ap[j].p;
+							}
+							else
+							{
+
+								a_result += ap[j].p;
+								b_result += ap[k].p;
+
+							}
+							flag = false;
+							break;
+						}
+					}
+					if (flag)
+					{
+						a_result += ap[j].p;
+						break;
+
+					}
+					else
+						break;
+
+				}
+
+			}
+		}
+
+		cout << "#"<<test+1<<" "<<a_result + b_result << endl;
+	}
+}
