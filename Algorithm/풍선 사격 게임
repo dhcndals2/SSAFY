@@ -1,0 +1,77 @@
+#include <iostream>
+#include <cstring>
+#include <queue>
+#include <cmath>
+#include <algorithm>
+
+using namespace std;
+
+vector<int> ball;
+int n;
+int max_val;
+
+void input()
+{
+	cin >> n;
+	for (int i = 0; i < n; i++)
+	{
+		int score;
+		cin >> score;
+		ball.push_back(score);
+	}
+}
+void reset()
+{
+	max_val = 0;
+	ball.clear();
+}
+void dfs(int lev,int cost)
+{
+	if (ball.empty())
+	{
+		max_val = max(max_val, cost);
+		return;
+	}
+
+
+	for (int i = 0; i < ball.size(); i++)//공선택
+	{
+		int number = ball[i];
+		int npcost = 0;
+		if (ball.size() == 1)//공이 한개인경우
+		{
+			npcost = ball[i];
+		}
+		else if (i == 0)//끝 선택
+		{
+			npcost = ball[i+1];
+
+		}
+		else if (i == ball.size() - 1)//끝선택
+		{
+			npcost = ball[i-1];
+
+		}
+		else
+		{
+			npcost = ball[i + 1] * ball[i - 1];
+		}
+		ball.erase(ball.begin() + i);
+		dfs(lev + 1, cost+npcost);
+		ball.insert(ball.begin()+i,number);
+	}
+}
+
+int main()
+{
+	int t;
+	cin >> t;
+	for (int test = 0; test < t; test++)
+	{
+		reset();
+		input();
+		dfs(0, 0);
+		cout << "#"<<test+1<<" "<<max_val << endl;
+	}
+	return 0;
+}
