@@ -1,0 +1,168 @@
+#include <iostream>
+#include <cstring>
+#include <queue>
+#include <cmath>
+#include <algorithm>
+using namespace std;
+
+int odd_dy[] = {-1,0,1,1,1,0};
+int odd_dx[] = {0,1,1,0,-1,-1};
+
+int duo_dy[] = {-1,-1,0,1,0,-1};
+int duo_dx[] = {0,1,1,0,-1,-1};
+int t, n, m;
+int map[16][16];
+int max_val;
+int visited[16][16];
+
+struct Point
+{
+	int y, x, cost;
+};
+
+void reset()
+{
+	for (int i = 0; i < 16; i++)
+	{
+		for (int j = 0; j < 16; j++)
+		{
+			visited[i][j] = 0;
+		}
+	}
+	
+}
+void input()
+{
+	cin >> n >> m;
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < m; j++)
+		{
+			cin >> map[i][j];
+		}
+	}
+
+}
+
+void dfs(int lev,Point cp)
+{
+	if (lev == 4)
+	{
+		max_val = max(max_val, cp.cost);
+		return;
+	}
+	if (cp.x % 2 == 0)
+	{
+		for (int i = 0; i < 6; i++)
+		{
+			Point np;
+			np.y = cp.y + duo_dy[i];
+			np.x = cp.x + duo_dx[i];
+			if (visited[np.y][np.x]) continue;
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= m) continue;
+			
+			np.cost = cp.cost + map[np.y][np.x];
+			visited[np.y][np.x] = 1;
+			dfs(lev + 1,np);
+			visited[np.y][np.x] = 0;
+		}
+	}
+	else
+	{
+		for (int i = 0; i < 6; i++)
+		{
+			Point np;
+			np.y = cp.y + odd_dy[i];
+			np.x = cp.x + odd_dx[i];
+			if (visited[np.y][np.x]) continue;
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= m) continue;
+
+			np.cost = cp.cost + map[np.y][np.x];
+			visited[np.y][np.x] = 1;
+			dfs(lev + 1, np);
+			visited[np.y][np.x] = 0;
+		}
+	}
+
+}
+void cross(Point st)
+{
+	st.cost = map[st.y][st.x];
+
+	if (st.x % 2 == 1)
+	{
+		for (int i = 0; i < 6; i+=2)
+		{
+			Point np;
+			np.y = st.y + odd_dy[i];
+			np.x = st.x + odd_dx[i];
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= m) break;
+			st.cost+= map[np.y][np.x];
+		}
+		max_val = max(max_val, st.cost);
+		st.cost = map[st.y][st.x];
+		for (int i = 1; i < 6; i += 2)
+		{
+			Point np;
+			np.y = st.y + odd_dy[i];
+			np.x = st.x + odd_dx[i];
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= m) break;
+			st.cost += map[np.y][np.x];
+		}
+		max_val = max(max_val, st.cost);
+		st.cost = map[st.y][st.x];
+	}
+	else
+	{
+		for (int i = 0; i < 6; i += 2)
+		{
+			Point np;
+			np.y = st.y + duo_dy[i];
+			np.x = st.x + duo_dx[i];
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= m) break;
+			st.cost += map[np.y][np.x];
+		}
+		max_val = max(max_val, st.cost);
+		st.cost = map[st.y][st.x];
+		for (int i = 1; i < 6; i += 2)
+		{
+			Point np;
+			np.y = st.y + duo_dy[i];
+			np.x = st.x + duo_dx[i];
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= m) break;
+			st.cost += map[np.y][np.x];
+		}
+		max_val = max(max_val, st.cost);
+		st.cost = map[st.y][st.x];
+	}
+}
+
+int main()
+{
+	cin >> t;
+	for (int test = 0; test < t; test++)
+	{
+		max_val = 0;
+
+		reset();
+		input();
+		for (int i = 0; i < n; i++)
+		{
+			for (int j = 0; j < m; j++)
+			{
+				Point st;
+				st.y = i;
+				st.x = j;
+				st.cost = 0;
+				cross(st);
+
+				dfs(0, st);
+				reset();
+
+			}
+		}
+		cout <<"#"<<test+1<<" "<< max_val << endl;
+	}
+	return 0;
+	
+}
