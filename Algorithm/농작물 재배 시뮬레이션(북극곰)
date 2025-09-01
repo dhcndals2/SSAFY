@@ -1,0 +1,126 @@
+#include <iostream>
+#include <queue>
+#include <cmath>
+#include <cstring>
+
+using namespace std;
+
+int visited[76][76];
+int map[76][76];
+int zeronum[76][76];
+int n, m;
+
+int dy[] = { -1,1,0,0 };
+int dx[] = { 0,0,-1,1 };
+int num_val = 0;
+
+struct Point
+{
+	int y, x;
+};
+
+
+Point st;
+
+int count(Point cp)
+{
+	int num = 0;
+	for (int i = 0; i < 4; i++)
+	{
+		Point np = { cp.y + dy[i],cp.x + dx[i] };
+		if (np.y < 0 || np.y >= n || np.x < 0 || np.x >= m) continue;
+
+		if (map[np.y][np.x] == 0)
+		{
+			num++;
+		}
+	}
+	return num;
+}
+void water()
+{
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < m; j++)
+		{
+			map[i][j] -= zeronum[i][j];
+			if (map[i][j] < 0)
+			{
+				map[i][j] = 0;
+			}
+		}
+	}
+}
+void reset()
+{
+	memset(visited, 0, sizeof(visited));
+	memset(zeronum, 0, sizeof(zeronum));
+	num_val = 0;
+}
+void bfs(Point st)
+{
+	queue<Point> q;
+	visited[st.y][st.x] = 1;
+	q.push(st);
+
+	while (!q.empty())
+	{
+		Point cp = q.front();
+		zeronum[cp.y][cp.x] = count(cp);
+
+		q.pop();
+
+		for (int i = 0; i < 4; i++)
+		{
+			Point np = { cp.y + dy[i],cp.x + dx[i] };
+			if (np.y < 0 || np.y >= n || np.x < 0 || np.x >= m) continue;
+			if (visited[np.y][np.x] > 0) continue;
+			if (map[np.y][np.x] == 0) continue;
+
+			visited[np.y][np.x] = visited[cp.y][cp.x] + 1;
+			q.push(np);
+		}
+	}
+}
+
+int main()
+{
+	cin >> n >> m;
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < m; j++)
+		{
+			cin >> map[i][j];
+		}
+	}
+	int year = 0;
+
+	while (1) {
+		num_val = 0;
+
+		for (int i = 0; i < n; i++) {
+			for (int j = 0; j < m; j++) {
+				if (map[i][j] != 0 && visited[i][j] == 0) {
+					st = { i, j };
+					bfs(st);
+					num_val++;
+				}
+			}
+		}
+
+		if (num_val == 0) { 
+			year = 0;
+			break;
+		}
+		if (num_val > 1) {  
+			break;
+		}
+
+		water();  
+		year++;  
+		reset();
+	}
+	cout << year << endl;
+	return 0;
+
+}
