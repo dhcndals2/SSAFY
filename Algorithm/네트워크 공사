@@ -1,0 +1,113 @@
+#include <iostream>
+#include <queue>
+#include <vector>
+
+using namespace std;
+
+struct Point
+{
+	int y;
+	int x;
+	int cost;
+};
+struct cmp
+{
+	bool operator()(Point a, Point b)
+	{
+		return a.cost > b.cost;
+	}
+};
+
+int n, m, k;
+char map[1001][1001];
+int dist[1001][1001];
+
+int dy[] = { -1,1,0,0 };
+int dx[] = { 0,0,-1,1 };
+
+Point st;
+Point server[1001];
+
+void dijkstra(Point st)
+{
+	priority_queue<Point, vector<Point>, cmp > pq;
+	pq.push(st);
+	dist[st.y][st.x] = 0;
+
+	while (!pq.empty())
+	{
+		Point cp = pq.top();
+		pq.pop();
+		if (dist[cp.y][cp.x] < cp.cost)
+		{
+			continue;
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			Point np;
+			np.y = cp.y + dy[i];
+			np.x = cp.x + dx[i];
+			if (np.y < 0 || np.x < 0 || np.y >= n || np.x >= m)
+			{
+				continue;
+			}
+			if (map[np.y][np.x] == '#')
+			{
+				continue;
+			}
+			np.cost = cp.cost + 1;
+
+			if (np.cost < dist[np.y][np.x])
+			{
+				dist[np.y][np.x] = np.cost;
+				pq.push(np);
+			}
+
+
+		}
+
+	}
+}
+
+void input()
+{
+	cin >> n >> m;
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < m; j++)
+		{
+			cin >> map[i][j];
+			dist[i][j] = 21e8;
+			if (map[i][j] == '@')
+			{
+				st.y = i;
+				st.x = j;
+				st.cost = 0;
+			}
+		}
+	}
+	cin >> k;
+	for (int i = 0; i < k; i++)
+	{
+		cin >> server[i].y >> server[i].x;
+		server[i].cost = 0;
+	}
+}
+
+int main()
+{
+	
+	input();
+	dijkstra(st);
+	int result = 0;
+
+	for (int i = 0; i < k; i++)
+	{
+		result += dist[server[i].y][server[i].x];
+	}
+	cout << result << endl;
+
+	return 0;
+
+}
