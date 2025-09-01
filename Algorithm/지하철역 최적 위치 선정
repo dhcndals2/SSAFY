@@ -1,0 +1,114 @@
+#include <iostream>
+#include <cmath>
+#include <queue>
+#include <cstring>
+
+using namespace std;
+
+int to_from[15][101];
+int map[51][51];
+int n, m;
+struct Point
+{
+	int y;
+	int x;
+};
+
+Point house[101];
+Point subway[14];
+int path[10000];
+int distance_val[2000];
+int house_num = 0;
+int subway_num = 0;
+int min_result = 21e8;
+void dfs(int lev, int p)
+{
+	if (lev == m)
+	{
+		for (int i = 0; i < house_num+1; i++)
+		{
+			distance_val[i] = 21e8;
+		}
+		int result = 0;
+		for (int i = 0; i < m; i++)
+		{
+			cout << path[i] << " ";
+		}
+		cout << endl;
+		for (int j = 0; j < house_num; j++)
+		{
+			for (int  i= 0; i < m; i++)
+			{
+				distance_val[j] = min(distance_val[j], to_from[path[i]][j]);
+			}
+		}
+		for (int i = 0; i < house_num; i++)
+		{
+			result += distance_val[i];
+			cout << distance_val[i] << "  ";
+		}
+		cout << endl;
+		cout << endl;
+		min_result = min(min_result, result);
+		return;
+	}
+	for (int i = p; i < subway_num; i++)	
+	{
+		path[lev] = p;
+		dfs(lev + 1, i + 1);
+		path[lev] = 0;
+	}
+}
+
+
+void input()
+{
+	cin >> n >> m;
+	
+	for (int i = 0; i < n; i++)
+	{
+		for (int j = 0; j < n; j++)
+		{
+			cin >> map[i][j];
+			if (map[i][j] == 1)
+			{
+
+				house[house_num].y = i;
+				house[house_num].x = j;
+				house_num++;
+			}
+			else if (map[i][j] == 2)
+			{
+				subway[subway_num].y = i;
+				subway[subway_num].x = j;
+				subway_num++;
+			}
+		}
+	}
+}
+
+int main()
+{
+	input();
+	for (int i = 0; i < 2000; i++)
+	{
+		distance_val[i] = 21e8;
+	}
+	for (int i = 0; i < subway_num; i++)
+	{
+		for (int j = 0; j < house_num; j++)
+		{
+			to_from[i][j] = abs(subway[i].y-house[j].y)+ abs(subway[i].x - house[j].x);
+		}
+	}
+	for (int i = 0; i < subway_num; i++)
+	{
+		for (int j = 0; j < house_num; j++)
+		{
+			cout << to_from[i][j] << " ";
+		}
+		cout << endl;
+	}
+	dfs(0, 0);
+	cout << min_result << endl;
+}
