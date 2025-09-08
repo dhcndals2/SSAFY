@@ -54,7 +54,7 @@ void dfs(int lev, int p)
 	}
 	for (int i = p; i < subway_num; i++)	
 	{
-		path[lev] = p;
+		path[lev] = i;
 		dfs(lev + 1, i + 1);
 		path[lev] = 0;
 	}
