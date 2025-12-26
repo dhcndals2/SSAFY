@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>스마트 물류 적재 시스템 (Resizable UI)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        /* [전역 설정] */
+        body { margin: 0; padding: 0; background-color: #1e1e1e; font-family: 'Pretendard', 'Malgun Gothic', sans-serif; color: #fff; height: 100vh; overflow: hidden; }
+        
+        /* [레이아웃 - Flexbox 기반 리사이징 구조] */
+        .container { 
+            display: flex; /* 좌우 배치를 위한 Flex */
+            width: 100vw; height: 100vh; 
+            overflow: hidden; 
+        }
+        
+        /* 1. 좌측 사이드바 */
+        .sidebar-left { 
+            width: 300px; /* 초기 너비 */
+            min-width: 200px; max-width: 500px;
+            background-color: #212529; 
+            padding: 20px; 
+            display: flex; flex-direction: column; gap: 20px; 
+            box-shadow: 4px 0 15px rgba(0,0,0,0.4); 
+            z-index: 10;
+            overflow-y: auto;
+            flex-shrink: 0; /* 줄어들지 않음 */
+        }
+
+        /* 2. 중앙 콘텐츠 (3D 뷰어 + 하단 패널) */
+        .center-content {
+            flex-grow: 1; /* 남은 공간 모두 차지 */
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            min-width: 400px; /* 최소 너비 확보 */
+        }
+
+        /* 2-1. 3D 뷰어 (상단) */
+        #canvas-container { 
+            flex-grow: 1; /* 남은 공간 차지 */
+            background-color: #1e272e; 
+            position: relative; 
+            overflow: hidden;
+        }
+
+        /* 2-2. 하단 패널 (카메라 + 대시보드) */
+        .bottom-container { 
+            height: 300px; /* 초기 높이 */
+            min-height: 150px; max-height: 80vh;
+            display: flex; 
+            background-color: #2c3e50; 
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        /* 3. 우측 사이드바 */
+        .sidebar-right {
+            width: 300px; /* 초기 너비 */
+            min-width: 200px; max-width: 500px;
+            background-color: #212529;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        /* [리사이저 핸들 스타일] */
+        .resizer-v {
+            width: 5px;
+            background-color: #111;
+            cursor: col-resize;
+            z-index: 20;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .resizer-h {
+            height: 5px;
+            background-color: #111;
+            cursor: row-resize;
+            z-index: 20;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .resizer-v:hover, .resizer-h:hover, .resizing {
+            background-color: #3498db; /* 활성화 시 파란색 */
+        }
+
+        /* 드래그 중 텍스트 선택 방지 */
+        body.is-resizing { user-select: none; cursor: col-resize; }
+        body.is-resizing-v { user-select: none; cursor: row-resize; }
+
+
+        /* [내부 요소 스타일] */
+        .right-top-logs { flex: 1; padding: 20px; display: flex; flex-direction: column; border-bottom: 2px solid #333; overflow: hidden; }
+        
+        /* 우측 하단 패널 스타일 */
+        .right-bottom-extra { flex: 1; padding: 20px; background-color: #252a2e; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; color: #555; }
+        .control-box.emergency-panel { width: 90%; background: #2c3035; padding: 15px; border-radius: 8px; border: 1px solid #3a3f45; text-align: center; }
+
+        /* UI 컴포넌트 */
+        h2 { margin: 0 0 10px 0; font-size: 20px; font-weight: 700; color: #f8f9fa; }
+        h3 { margin: 0 0 10px 0; font-size: 14px; color: #adb5bd; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #444; padding-bottom: 5px;}
+        .control-box { background: #2c3035; padding: 15px; border-radius: 8px; border: 1px solid #3a3f45; }
+        .input-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #3a3f45; }
+        .input-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .input-group label { font-size: 13px; color: #e9ecef; flex: 1; }
+        .input-group input { width: 60px; padding: 5px; background: #1a1d20; border: 1px solid #495057; color: white; border-radius: 4px; text-align: center; font-weight: bold; }
+        .input-group input:focus { outline: none; border-color: #3498db; }
+        .cube-input input { border-width: 2px; }
+        .cube-red input { border-color: #e74c3c; color: #e74c3c; }
+        .cube-yellow input { border-color: #f1c40f; color: #f1c40f; }
+        .cube-blue input { border-color: #3498db; color: #3498db; }
+        button { width: 100%; padding: 12px; background: linear-gradient(135deg, #3498db, #2980b9); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 15px; margin-top: 5px; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        button:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(52, 152, 219, 0.4); }
+        #logs { flex-grow: 1; background: #111; color: #00ff41; padding: 10px; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 11px; line-height: 1.6; overflow-y: auto; border: 1px solid #444; margin-top: 10px; }
+        #logs::-webkit-scrollbar { width: 8px; }
+        #logs::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        .log-line { border-bottom: 1px solid #222; padding-bottom: 2px; margin-bottom: 2px; word-break: break-all; }
+        
+        .video-panel { flex: 1; background: #000; display: flex; flex-direction: column; border-right: 4px solid #111; position: relative; overflow: hidden; }
+        .video-header { background: #1a1a1a; color: #fff; padding: 0 15px; height: 35px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; flex-shrink: 0; box-sizing: border-box; }
+        .live-badge { background: #e74c3c; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; animation: blink 1.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        #camera-stream { position: absolute; top: 35px; left: 0; width: 100%; height: calc(100% - 35px); object-fit: contain; background: #000; }
+        
+        .dashboard-panel { flex: 1; padding: 20px; background-color: #f1f2f6; color: #333; overflow-y: auto; }
+        .dash-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .card { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; position: relative; }
+        .card.total { border-top: 3px solid #34495e; }
+        .card.white { border-top: 3px solid #27ae60; }
+        .card.reject { border-top: 3px solid #c0392b; }
+        .card.red { border-top: 3px solid #e74c3c; }
+        .card.yellow { border-top: 3px solid #f1c40f; }
+        .card.blue { border-top: 3px solid #3498db; }
+        .card h4 { margin: 0; color: #7f8c8d; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .card .value { font-size: 20px; font-weight: 800; margin-top: 5px; color: #2c3e50; }
+    </style>
+</head>
+<body>
+    <div class="container" id="mainContainer">
+        
+        <div class="sidebar-left" id="sidebarLeft">
+            <h2>📦 제어 패널</h2>
+            
+            <div class="control-box">
+                <div class="input-group"><label>제한 높이 (Limit)</label><input type="number" id="limitHeight" value="10"></div>
+            </div>
+
+            <h3>⚪ 흰색 박스 (White Box)</h3>
+            <div class="control-box">
+                <div class="input-group"><label>높이 7</label><input type="number" id="cnt7" value="1"></div>
+                <div class="input-group"><label>높이 5</label><input type="number" id="cnt5" value="1"></div>
+                <div class="input-group"><label>높이 4</label><input type="number" id="cnt4" value="1"></div>
+                <div class="input-group"><label>높이 3</label><input type="number" id="cnt3" value="1"></div>
+                <div class="input-group"><label>높이 2</label><input type="number" id="cnt2" value="1"></div>
+            </div>
+
+            <h3>🎨 색상 큐브 (2.5cm)</h3>
+            <div class="control-box">
+                <div class="input-group cube-input cube-red"><label>🟥 Red</label><input type="number" id="cntRed" value="1"></div>
+                <div class="input-group cube-input cube-yellow"><label>🟨 Yellow</label><input type="number" id="cntYellow" value="1"></div>
+                <div class="input-group cube-input cube-blue"><label>🟦 Blue</label><input type="number" id="cntBlue" value="1"></div>
+            </div>
+
+            <button onclick="start()">시뮬레이션 시작</button>
+        </div>
+
+        <div class="resizer-v" id="resizerLeft"></div>
+
+        <div class="center-content">
+            <div id="canvas-container"></div>
+
+            <div class="resizer-h" id="resizerBottom"></div>
+
+            <div class="bottom-container" id="bottomPanel">
+                <div class="video-panel" id="video-panel">
+                    <div class="video-header"><span>📷 Camera Feed</span><span class="live-badge">LIVE</span></div>
+                    <img id="camera-stream" src="/video_feed" alt="No Signal">
+                </div>
+                <div class="dashboard-panel">
+                    <h3>📊 작업 현황 (완료 / 입력)</h3>
+                    <div class="dash-grid">
+                        <div class="card total"><h4>Total</h4><div class="value" id="disp-total">0 / 0</div></div>
+                        <div class="card white"><h4>White</h4><div class="value" id="disp-white">0 / 0</div></div>
+                        <div class="card reject"><h4>Reject</h4><div class="value" id="disp-reject" style="color:#c0392b">0</div></div>
+                        <div class="card red"><h4>Red</h4><div class="value" id="disp-red">0 / 0</div></div>
+                        <div class="card yellow"><h4>Yellow</h4><div class="value" id="disp-yellow">0 / 0</div></div>
+                        <div class="card blue"><h4>Blue</h4><div class="value" id="disp-blue">0 / 0</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="resizer-v" id="resizerRight"></div>
+
+        <div class="sidebar-right" id="sidebarRight">
+            <div class="right-top-logs">
+                <h3>🖥️ 터미널 로그</h3>
+                <div id="logs"><div class="log-line">> 시스템 준비 완료</div></div>
+            </div>
+            <div class="right-bottom-extra">
+                <div class="control-box emergency-panel">
+                    <h3>🚨 로봇 제어 (Emergency)</h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px;">
+                        <button onclick="emergencyStop()" style="background: linear-gradient(135deg, #e74c3c, #c0392b); font-size: 16px; box-shadow: 0 4px 10px rgba(231, 76, 60, 0.4);">
+                            🛑 긴급 정지 (STOP)
+                        </button>
+                        <button onclick="goHome()" style="background: linear-gradient(135deg, #f39c12, #d35400); font-size: 16px; box-shadow: 0 4px 10px rgba(243, 156, 18, 0.4);">
+                            🏠 홈밍 (Homing)
+                        </button>
+                    </div>
+                    <p style="font-size: 11px; color: #888; margin-top: 15px; margin-bottom: 0;">
+                        ※ 긴급 정지 시 모든 작업이 즉시 중단됩니다.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const socket = io();
+        let scene, camera, renderer, controls;
+        const objects = []; 
+        const boxQueue = [];
+        let processingInterval = null;
+        let volumeHelper = null; 
+
+        let inputCounts = { white: 0, red: 0, yellow: 0, blue: 0, total: 0 };
+        let currentCounts = { white: 0, red: 0, yellow: 0, blue: 0, reject: 0, total: 0 };
+
+        const BOX_BASE_SIZE = 3; 
+        const GAP = 0.5;         
+        const GRID_UNIT = BOX_BASE_SIZE + GAP; 
+        const REJECT_OFFSET_X = -18; 
+        const COLOR_OFFSET_X = 18;  
+        const COLOR_Z_OFFSETS = { 'red': 8, 'yellow': 0, 'blue': -8 };
+        let rejectCounter = 0;
+        let colorCounters = { red: 0, yellow: 0, blue: 0 };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init(); 
+            animate(); 
+            setupResizers();
+        });
+
+        // 긴급 정지 함수
+        function emergencyStop() {
+            if(confirm("🚨 경고: 로봇의 모든 동작을 즉시 중단하시겠습니까?\n(다시 시작하려면 프로그램을 재실행해야 할 수 있습니다.)")) {
+                socket.emit('emergency_stop');
+                log("🚨 [명령] 긴급 정지 실행 요청!");
+            }
+        }
+
+        // 홈밍 함수
+        function goHome() {
+            if(confirm("🏠 확인: 로봇을 원점(Homing)으로 이동시키겠습니까?\n(약 20초 소요되며, 작업 중일 때는 권장하지 않습니다.)")) {
+                socket.emit('go_home');
+                log("🏠 [명령] 홈밍(Homing) 실행 요청...");
+            }
+        }
+
+        function setupResizers() {
+            const resizerLeft = document.getElementById('resizerLeft');
+            const sidebarLeft = document.getElementById('sidebarLeft');
+            createResizer(resizerLeft, (e, startX, startWidth) => {
+                const newWidth = startWidth + (e.clientX - startX);
+                if(newWidth > 200 && newWidth < 600) {
+                    sidebarLeft.style.width = `${newWidth}px`;
+                    onWindowResize(); 
+                }
+            });
+
+            const resizerRight = document.getElementById('resizerRight');
+            const sidebarRight = document.getElementById('sidebarRight');
+            createResizer(resizerRight, (e, startX, startWidth) => {
+                const newWidth = startWidth - (e.clientX - startX); 
+                if(newWidth > 200 && newWidth < 600) {
+                    sidebarRight.style.width = `${newWidth}px`;
+                    onWindowResize();
+                }
+            });
+
+            const resizerBottom = document.getElementById('resizerBottom');
+            const bottomPanel = document.getElementById('bottomPanel');
+            createResizer(resizerBottom, (e, startX, startWidth, startY, startHeight) => {
+                const newHeight = startHeight - (e.clientY - startY);
+                if(newHeight > 100 && newHeight < window.innerHeight * 0.8) {
+                    bottomPanel.style.height = `${newHeight}px`;
+                    onWindowResize();
+                }
+            }, 'vertical');
+        }
+
+        function createResizer(resizer, onDrag, type = 'horizontal') {
+            let startX, startY, startWidth, startHeight;
+
+            resizer.addEventListener('mousedown', (e) => {
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                if (resizer.id === 'resizerLeft') {
+                    startWidth = document.getElementById('sidebarLeft').getBoundingClientRect().width;
+                } else if (resizer.id === 'resizerRight') {
+                    startWidth = document.getElementById('sidebarRight').getBoundingClientRect().width;
+                } else if (resizer.id === 'resizerBottom') {
+                    startHeight = document.getElementById('bottomPanel').getBoundingClientRect().height;
+                }
+
+                document.body.classList.add(type === 'horizontal' ? 'is-resizing' : 'is-resizing-v');
+                resizer.classList.add('resizing');
+
+                const doDrag = (e) => onDrag(e, startX, startWidth, startY, startHeight);
+                const stopDrag = () => {
+                    document.removeEventListener('mousemove', doDrag);
+                    document.removeEventListener('mouseup', stopDrag);
+                    document.body.classList.remove('is-resizing', 'is-resizing-v');
+                    resizer.classList.remove('resizing');
+                };
+
+                document.addEventListener('mousemove', doDrag);
+                document.addEventListener('mouseup', stopDrag);
+            });
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1e272e);
+            scene.fog = new THREE.Fog(0x1e272e, 40, 150);
+
+            camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+            camera.position.set(0, 45, 60); 
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(width, height);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(30, 50, 30);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048; 
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.left = -50; dirLight.shadow.camera.right = 50;
+            dirLight.shadow.camera.top = 50; dirLight.shadow.camera.bottom = -50;
+            scene.add(dirLight);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            const bigFloor = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshStandardMaterial({ color: 0x15181b, roughness: 0.8 }));
+            bigFloor.rotation.x = -Math.PI / 2; bigFloor.position.y = -0.1; bigFloor.receiveShadow = true;
+            scene.add(bigFloor);
+
+            const gridCellCount = 80; 
+            const gridTotalSize = GRID_UNIT * gridCellCount; 
+            const largeGrid = new THREE.GridHelper(gridTotalSize, gridCellCount, 0x333333, 0x333333);
+            largeGrid.position.set(GRID_UNIT / 2, -0.09, GRID_UNIT / 2);
+            scene.add(largeGrid);
+
+            const palletSize = GRID_UNIT * 3;
+            const mainFloor = new THREE.Mesh(new THREE.PlaneGeometry(palletSize+1, palletSize+1), new THREE.MeshStandardMaterial({ color: 0x2f3640 }));
+            mainFloor.rotation.x = -Math.PI / 2; mainFloor.position.y = -0.05; mainFloor.receiveShadow = true;
+            scene.add(mainFloor);
+
+            const rejectFloorSize = GRID_UNIT * 2;
+            const rejectFloor = new THREE.Mesh(new THREE.PlaneGeometry(rejectFloorSize, rejectFloorSize), new THREE.MeshStandardMaterial({ color: 0xc0392b, transparent: true, opacity: 0.5 }));
+            rejectFloor.rotation.x = -Math.PI / 2; rejectFloor.position.set(REJECT_OFFSET_X, -0.05, 0); rejectFloor.receiveShadow = true;
+            scene.add(rejectFloor);
+
+            const cubeZoneSize = 2.5 * 2 + 1; 
+            const cubeFloorGeo = new THREE.PlaneGeometry(cubeZoneSize, cubeZoneSize);
+            
+            const redFloor = new THREE.Mesh(cubeFloorGeo, new THREE.MeshStandardMaterial({ color: 0xe74c3c, transparent: true, opacity: 0.5 }));
+            redFloor.rotation.x = -Math.PI / 2; redFloor.position.set(COLOR_OFFSET_X, -0.05, COLOR_Z_OFFSETS.red); redFloor.receiveShadow = true;
+            scene.add(redFloor);
+            
+            const yellowFloor = new THREE.Mesh(cubeFloorGeo, new THREE.MeshStandardMaterial({ color: 0xf1c40f, transparent: true, opacity: 0.5 }));
+            yellowFloor.rotation.x = -Math.PI / 2; yellowFloor.position.set(COLOR_OFFSET_X, -0.05, COLOR_Z_OFFSETS.yellow); yellowFloor.receiveShadow = true;
+            scene.add(yellowFloor);
+
+            const blueFloor = new THREE.Mesh(cubeFloorGeo, new THREE.MeshStandardMaterial({ color: 0x3498db, transparent: true, opacity: 0.5 }));
+            blueFloor.rotation.x = -Math.PI / 2; blueFloor.position.set(COLOR_OFFSET_X, -0.05, COLOR_Z_OFFSETS.blue); blueFloor.receiveShadow = true;
+            scene.add(blueFloor);
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if(container && camera && renderer) {
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            }
+        }
+
+        function createCanvasTexture(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0,0,256,256);
+            ctx.strokeStyle = '#ccc'; ctx.lineWidth = 10; ctx.strokeRect(5,5,246,246);
+            ctx.fillStyle = '#333'; ctx.font = 'bold 100px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 128);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createVolumeGuide(limitHeight) {
+            if(volumeHelper) scene.remove(volumeHelper);
+            const areaSize = GRID_UNIT * 3;
+            const height = limitHeight;
+            const geometry = new THREE.BoxGeometry(areaSize, height, areaSize);
+            const edges = new THREE.EdgesGeometry(geometry);
+            volumeHelper = new THREE.LineSegments(
+                edges, 
+                new THREE.LineBasicMaterial({ color: 0xffeaa7, linewidth: 1, transparent: true, opacity: 0.3 })
+            );
+            volumeHelper.position.set(0, height / 2, 0);
+            scene.add(volumeHelper);
+        }
+
+        socket.on('init_grid', (data) => {
+            objects.forEach(obj => scene.remove(obj));
+            objects.length = 0;
+            boxQueue.length = 0;
+            rejectCounter = 0;
+            colorCounters = { red: 0, yellow: 0, blue: 0 };
+            currentCounts = { white: 0, red: 0, yellow: 0, blue: 0, reject: 0, total: 0 };
+            updateDashboard();
+            createVolumeGuide(data.limit_height);
+            startQueueProcessing();
+            log(`시스템 초기화 (Limit: ${data.limit_height})`);
+        });
+
+        socket.on('item_event', (data) => boxQueue.push(data));
+        socket.on('log', (data) => log(data.msg));
+
+        function startQueueProcessing() {
+            if (processingInterval) clearInterval(processingInterval);
+            processingInterval = setInterval(() => {
+                if (boxQueue.length > 0) {
+                    const data = boxQueue.shift();
+                    currentCounts.total++;
+                    if (data.type === 'accepted') {
+                        createWhiteBox(data.row, data.col, data.height, data.y_start);
+                        currentCounts.white++;
+                    } else if (data.type === 'rejected') {
+                        // [수정] 색상 정보(data.class)를 함께 전달
+                        createRejectBox(data.height, data.class);
+                        currentCounts.reject++;
+                    } else if (data.type === 'color_cube') {
+                        createColorCube(data.color, data.size);
+                        if (currentCounts[data.color] !== undefined) {
+                            currentCounts[data.color]++;
+                        }
+                    }
+                    updateDashboard();
+                }
+            }, 500);
+        }
+
+        function updateDashboard() {
+            document.getElementById('disp-total').innerText = `${currentCounts.total} / ${inputCounts.total}`;
+            document.getElementById('disp-white').innerText = `${currentCounts.white} / ${inputCounts.white}`;
+            document.getElementById('disp-red').innerText = `${currentCounts.red} / ${inputCounts.red}`;
+            document.getElementById('disp-yellow').innerText = `${currentCounts.yellow} / ${inputCounts.yellow}`;
+            document.getElementById('disp-blue').innerText = `${currentCounts.blue} / ${inputCounts.blue}`;
+            document.getElementById('disp-reject').innerText = currentCounts.reject;
+        }
+
+        function createWhiteBox(row, col, height, yStart) {
+            const x = (col - 1) * GRID_UNIT;
+            const z = (row - 1) * GRID_UNIT;
+            const targetY = yStart + (height / 2);
+            const geometry = new THREE.BoxGeometry(BOX_BASE_SIZE, height, BOX_BASE_SIZE);
+            const texture = createCanvasTexture(height);
+            const material = new THREE.MeshStandardMaterial({ map: texture, color: 0xffffff });
+            const box = new THREE.Mesh(geometry, material);
+            addEdgesAndSpawn(box, x, targetY, z);
+            log(`[White] 위치(${row+1},${col+1}) 높이:${height}`);
+        }
+
+        // [수정] colorName 매개변수 추가 및 색상 처리 로직
+        function createRejectBox(height, colorName) {
+            const idx = rejectCounter;
+            const rCol = idx % 2;
+            const rRow = Math.floor(idx / 2) % 2;
+            const layer = Math.floor(idx / 4);
+            const x = REJECT_OFFSET_X + (rCol - 0.5) * GRID_UNIT;
+            const z = (rRow - 0.5) * GRID_UNIT;
+            const y = (layer * 5) + (height/2);
+            const geometry = new THREE.BoxGeometry(BOX_BASE_SIZE, height, BOX_BASE_SIZE);
+            
+            let material;
+            const colorMap = { 'red': 0xe74c3c, 'yellow': 0xf1c40f, 'blue': 0x3498db };
+
+            // 색깔 큐브이면 해당 색상 재질 사용
+            if (colorMap[colorName]) {
+                material = new THREE.MeshStandardMaterial({ 
+                    color: colorMap[colorName], 
+                    roughness: 0.2, 
+                    metalness: 0.1 
+                });
+            } else {
+                // 흰색 박스(또는 알 수 없는 색상)면 텍스처 사용
+                const texture = createCanvasTexture(height);
+                material = new THREE.MeshStandardMaterial({ map: texture, color: 0xffffff });
+            }
+
+            const box = new THREE.Mesh(geometry, material);
+            addEdgesAndSpawn(box, x, y, z);
+            rejectCounter++;
+            log(`[Reject] ${colorName || 'unknown'} (${height}mm) -> 반려구역`);
+        }
+
+        function createColorCube(colorName, size) {
+            const colorMap = { 'red': 0xe74c3c, 'yellow': 0xf1c40f, 'blue': 0x3498db };
+            const hex = colorMap[colorName] || 0xffffff;
+            const idx = colorCounters[colorName]++;
+            const itemsPerRow = 2;
+            const spacing = size + 0.5;
+            const cCol = idx % itemsPerRow;
+            const cRow = Math.floor(idx / itemsPerRow) % itemsPerRow;
+            const layer = Math.floor(idx / (itemsPerRow * itemsPerRow));
+            const centerOffset = ((itemsPerRow - 1) * spacing) / 2;
+            const x = COLOR_OFFSET_X + (cCol * spacing) - centerOffset;
+            const z = COLOR_Z_OFFSETS[colorName] + (cRow * spacing) - centerOffset;
+            const y = (layer * size) + (size / 2);
+            const cubeGeo = new THREE.BoxGeometry(size, size, size);
+            const cubeMat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.2, metalness: 0.1 });
+            const cube = new THREE.Mesh(cubeGeo, cubeMat);
+            addEdgesAndSpawn(cube, x, y, z);
+            log(`[Cube] ${colorName} -> 전용 구역 적재`);
+        }
+
+        function addEdgesAndSpawn(mesh, x, y, z) {
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
+            mesh.add(edges);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            mesh.position.set(x, y + 30, z);
+            scene.add(mesh);
+            objects.push(mesh);
+            const dropSpeed = 1.0;
+            function drop() {
+                if (mesh.position.y > y) {
+                    mesh.position.y -= dropSpeed;
+                    if (mesh.position.y < y) mesh.position.y = y;
+                    requestAnimationFrame(drop);
+                }
+            }
+            drop();
+        }
+
+        function start() {
+            const c7 = parseInt(document.getElementById('cnt7').value) || 0;
+            const c5 = parseInt(document.getElementById('cnt5').value) || 0;
+            const c4 = parseInt(document.getElementById('cnt4').value) || 0;
+            const c3 = parseInt(document.getElementById('cnt3').value) || 0;
+            const c2 = parseInt(document.getElementById('cnt2').value) || 0; 
+            const cRed = parseInt(document.getElementById('cntRed').value) || 0;
+            const cYellow = parseInt(document.getElementById('cntYellow').value) || 0;
+            const cBlue = parseInt(document.getElementById('cntBlue').value) || 0;
+
+            inputCounts.white = c7 + c5 + c4 + c3 + c2;
+            inputCounts.red = cRed;
+            inputCounts.yellow = cYellow;
+            inputCounts.blue = cBlue;
+            inputCounts.total = inputCounts.white + cRed + cYellow + cBlue;
+
+            const data = {
+                limit_height: document.getElementById('limitHeight').value,
+                inventory: {
+                    '7': c7, '5': c5, '4': c4, '3': c3, '2': c2,
+                    'red': cRed, 'yellow': cYellow, 'blue': cBlue
+                }
+            };
+            socket.emit('start_simulation', data);
+        }
+
+        function log(msg) {
+            const el = document.getElementById('logs');
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            const timeStr = new Date().toTimeString().split(' ')[0]; 
+            line.innerText = `[${timeStr}] ${msg}`;
+            el.appendChild(line);
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
