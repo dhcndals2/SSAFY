@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>ROS2 Hybrid Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/eventemitter2@6.4.9/lib/eventemitter2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+<script src="https://code.createjs.com/1.0.0/easeljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ros2d@0.9.0/build/ros2d.min.js"></script>
+
+<style>
+  body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  header { background-color: #0d0d0d; padding: 0 20px; height: 50px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; flex-shrink: 0; }
+  .status-badge { padding: 5px 12px; border-radius: 4px; font-weight: bold; font-size: 0.9em; background: #333; color: #888; transition: all 0.3s; }
+  .status-badge.online { background: #1b5e20; color: #a5d6a7; box-shadow: 0 0 10px #1b5e20; }
+  .status-badge.offline { background: #b71c1c; color: #ffcdd2; }
+  .main-container { display: grid; grid-template-columns: 70% 30%; grid-template-rows: 65% 35%; gap: 15px; padding: 15px; height: calc(100vh - 50px); box-sizing: border-box; }
+  .card { background-color: #1e1e1e; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.5); border: 1px solid #333; }
+  .card-header { font-size: 1em; color: #ccc; margin-bottom: 8px; border-bottom: 1px solid #444; padding-bottom: 4px; display: flex; justify-content: space-between; }
+  #map-card { grid-column: 1/2; grid-row: 1/2; background: #000; overflow: hidden; position: relative; }
+  #map-canvas { width: 100%; height: 100%; }
+  #log-card { grid-column: 1/2; grid-row: 2/3; background: #000; display: flex; flex-direction: column; }
+  #log-viewer { flex-grow: 1; font-family: 'Consolas', monospace; font-size: 0.95em; padding: 10px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #333; background: #080808; }
+  .log-line { margin-bottom: 4px; border-bottom: 1px solid #1a1a1a; padding-bottom: 2px; }
+  .log-time { color: #888; margin-right: 8px; font-size: 0.9em; }
+  .log-label { font-weight: bold; margin-right: 5px; text-transform: uppercase; }
+  .color-green  { color: #66bb6a; } /* Loading, Success, Complete */
+  .color-blue   { color: #42a5f5; } /* Moving (파란색) */
+  .color-orange { color: #ffca28; } /* Warning */
+  .color-red    { color: #ef5350; } /* Error, Alert */
+  .color-gray   { color: #9e9e9e; } /* System */
+  #right-panel { grid-column: 2/3; grid-row: 1/3; display: flex; flex-direction: column; gap: 10px; }
+  .donut-chart { width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(#333 0% 100%); display: flex; justify-content: center; align-items: center; margin: 0 auto; }
+  .donut-hole { width: 90px; height: 90px; background: #1e1e1e; border-radius: 50%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  .task-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 10px; }
+  .task-item { background: #252525; border: 1px solid #333; border-radius: 6px; padding: 8px 2px; text-align: center; display: flex; flex-direction: column; }
+  .task-label { font-size: 0.7em; color: #aaa; margin-bottom: 2px; }
+  .task-val { font-size: 1.1em; font-weight: bold; color: white; }
+  .zone-a { border-bottom: 2px solid #4fc3f7; } .zone-b { border-bottom: 2px solid #ffca28; } .zone-c { border-bottom: 2px solid #66bb6a; } 
+  .total-box { background: #333; padding: 5px; border-radius: 6px; text-align: center; margin-bottom: 5px; }
+  .total-label { color: #ccc; font-size: 0.8em; }
+  .total-num { font-size: 1.5em; font-weight: bold; color: white; }
+  #joystick-zone { flex-grow: 1; border: 1px dashed #444; border-radius: 8px; background: #1a1a1a; min-height: 120px; position: relative; }
+  #stop-btn { margin-top: 5px; padding: 15px; background: linear-gradient(145deg, #c62828, #b71c1c); color: white; border: none; border-radius: 6px; font-weight: 900; font-size: 1.1em; cursor: pointer; text-transform: uppercase; width: 100%; }
+  #stop-btn:active { transform: translateY(2px); }
+</style>
+</head>
+<body>
+
+  <header>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span>🤖</span> <b id="dashboard-title">Logistics Robot Dashboard</b>
+    </div>
+    <div id="status" class="status-badge offline">OFFLINE</div>
+  </header>
+
+  <div class="main-container">
+    <div class="card" id="map-card">
+      <div id="map-canvas"></div>
+      <div id="map-msg" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:#555; text-align:center;">
+        Waiting for Map...<br><small>(Launch nav2_map_server)</small>
+      </div>
+    </div>
+
+    <div class="card" id="log-card">
+      <div class="card-header">
+        <span>📜 Robot Activity Log</span>
+        <button onclick="document.getElementById('log-viewer').innerHTML=''" style="background:none; border:none; color:#666; cursor:pointer;">CLEAR</button>
+      </div>
+      <div id="log-viewer"></div>
+    </div>
+
+    <div id="right-panel">
+      <div class="card">
+        <div class="card-header">🔋 Battery</div>
+        <div style="padding:5px;">
+          <div class="donut-chart" id="battery-chart">
+            <div class="donut-hole">
+              <span style="font-size:1.6em; font-weight:bold; color:white;" id="batt-percent">--</span>
+              <span style="font-size:0.85em; color:#888;" id="batt-volt">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">✅ Delivery Status</div>
+        <div class="total-box">
+          <span class="total-label">Total Completed</span><br>
+          <span class="total-num" id="count-total">0</span>
+        </div>
+        <div class="task-grid">
+          <div class="task-item zone-a">
+            <span class="task-label">A.Cold</span>
+            <span class="task-val" id="count-a">0</span>
+          </div>
+          <div class="task-item zone-b">
+            <span class="task-label">B.Fragile</span>
+            <span class="task-val" id="count-b">0</span>
+          </div>
+          <div class="task-item zone-c">
+            <span class="task-label">C.General</span>
+            <span class="task-val" id="count-c">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="flex-grow: 1;">
+        <div class="card-header">🕹️ Control</div>
+        <div id="joystick-zone"></div>
+        <button id="stop-btn" onclick="emergencyStop()">⚠️ Emergency Stop</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ========================================================
+  // [설정 구역] ★ 여기서 시뮬레이션/실물 전환 ★
+  // ========================================================
+  const CONFIG = {
+    // true = 가상환경(Gazebo), false = 실물 로봇(Real)
+    IS_SIMULATION: false,  
+
+    // Gazebo는 보통 localhost, 실물은 로봇 IP (예: 192.168.110.176)
+    ROBOT_IP: '192.168.110.176', 
+
+    MAX_LINEAR: 0.3,
+    MAX_ANGULAR: 0.8
+  };
+  // ========================================================
+
+  if(CONFIG.IS_SIMULATION) {
+    document.getElementById('dashboard-title').innerText = "Logistics (Gazebo Sim)";
+    document.getElementById('dashboard-title').style.color = "#4fc3f7"; 
+  } else {
+    document.getElementById('dashboard-title').innerText = "Logistics (Real Robot)";
+    document.getElementById('dashboard-title').style.color = "#e0e0e0";
+  }
+
+  var ros = new ROSLIB.Ros({ url : 'ws://' + CONFIG.ROBOT_IP + ':9090' });
+
+  var isConnectionError = false;
+
+  ros.on('connection', () => { 
+    updateStatus('ONLINE', 'online'); 
+    addLog("SYSTEM", "Websocket connected.", "color-green"); 
+  });
+
+  ros.on('error', () => { 
+    isConnectionError = true;
+    updateStatus('ERROR', 'offline'); 
+    addLog("SYSTEM", "Connection Error.", "color-red"); 
+  });
+
+  ros.on('close', () => { 
+      updateStatus('OFFLINE', 'offline'); 
+      if (isConnectionError == false) {
+        addLog("SYSTEM", "Connection Closed.", "color-red"); 
+      }
+  });
+
+  function updateStatus(msg, type) {
+    const el = document.getElementById("status");
+    el.innerText = msg; el.className = "status-badge " + type;
+
+    if (type === 'offline') {
+        document.getElementById("batt-percent").innerText = "0%";
+        document.getElementById("batt-volt").innerText = "OFFLINE";
+        document.getElementById("battery-chart").style.background = `conic-gradient(#333 0% 100%)`;
+    } 
+    else if (type === 'online' && CONFIG.IS_SIMULATION) {
+        document.getElementById("batt-percent").innerText = "100%";
+        document.getElementById("batt-volt").innerText = "12.6V (Sim)";
+        document.getElementById("battery-chart").style.background = `conic-gradient(#4caf50 0% 100%, #333 100% 100%)`;
+    }
+  }
+
+  function addLog(label, message, colorClass="color-gray") {
+    const box = document.getElementById("log-viewer");
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5); 
+
+    const line = document.createElement("div");
+    line.className = "log-line";
+    
+    line.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="log-label ${colorClass}">${label}:</span> <span style="color:#ddd">${message}</span>`;
+    
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // --------------------------------------------------------
+  // 1. 배터리
+  // --------------------------------------------------------
+  if (CONFIG.IS_SIMULATION) {
+    document.getElementById("batt-percent").innerText = "100%";
+    document.getElementById("batt-volt").innerText = "12.6V (Sim)";
+    document.getElementById("battery-chart").style.background = `conic-gradient(#4caf50 0% 100%, #333 100% 100%)`;
+  } else {
+    var battSub = new ROSLIB.Topic({ ros: ros, name: '/battery_state', messageType: 'sensor_msgs/BatteryState' });
+    battSub.subscribe(msg => {
+      let pct = msg.percentage;
+      if(isNaN(pct)) pct = 0;
+      let displayPct = (pct > 1.0) ? Math.round(pct) : Math.round(pct * 100);
+      
+      document.getElementById("batt-percent").innerText = displayPct + "%";
+      document.getElementById("batt-volt").innerText = msg.voltage.toFixed(1) + "V";
+      let color = (displayPct < 20) ? "#ef5350" : "#4caf50";
+      document.getElementById("battery-chart").style.background = `conic-gradient(${color} 0% ${displayPct}%, #333 ${displayPct}% 100%)`;
+    });
+  }
+
+  // --------------------------------------------------------
+  // 2. 조이스틱
+  // --------------------------------------------------------
+  var cmdVel = new ROSLIB.Topic({ ros: ros, name: '/cmd_vel', messageType: 'geometry_msgs/Twist' });
+  var twist = new ROSLIB.Message({ linear:{x:0,y:0,z:0}, angular:{x:0,y:0,z:0} });
+  var manager = nipplejs.create({ zone: document.getElementById('joystick-zone'), mode: 'static', position: {left:'50%', top:'50%'}, color: '#2196f3', size: 120 });
+
+  manager.on('move', (evt, data) => {
+    if(data.vector) {
+      twist.linear.x = data.vector.y * CONFIG.MAX_LINEAR;  
+      twist.angular.z = -data.vector.x * CONFIG.MAX_ANGULAR; 
+      cmdVel.publish(twist);
+    }
+  });
+  manager.on('end', () => { stopRobot(false); });
+
+  var commandPub = new ROSLIB.Topic({ ros : ros, name : '/turtlebot3_move_command', messageType : 'std_msgs/String' });
+
+  function emergencyStop() { stopRobot(true); }
+  function stopRobot(isEmergency) {
+    twist.linear.x = 0;
+    twist.angular.z = 0;
+    cmdVel.publish(twist);
+
+    var stopMsg = new ROSLIB.Message({ data: "STOP" });
+    commandPub.publish(stopMsg);
+
+    if(isEmergency) {
+        addLog("Alert", "비상 정지 버튼 눌림! (Nav2 취소 전송)", "color-red");
+    }
+  }
+
+  // --------------------------------------------------------
+  // 3. 로봇 상태 수신 및 자동 카운트
+  // --------------------------------------------------------
+  var statusSub = new ROSLIB.Topic({ ros : ros, name : '/robot_status', messageType : 'std_msgs/String' });
+
+  statusSub.subscribe(function(msg) {
+    var fullText = msg.data; 
+    let label = "INFO";
+    let content = fullText;
+    let color = "color-green"; 
+
+    if (fullText.includes(":")) {
+        const parts = fullText.split(":");
+        label = parts[0].trim();  
+        content = parts.slice(1).join(":").trim(); 
+    }
+
+    if (label === "Moving") color = "color-blue";      
+    else if (label === "Error" || label === "Fail" || label.includes("실패")) color = "color-red";       
+    else if (label === "Warning" || label.includes("주의")) color = "color-orange";    
+    else if (label === "Complete" || label === "Loading" || label === "Unloading") color = "color-green";     
+    else color = "color-gray";      
+
+    addLog(label, content, color);
+
+    if (fullText.includes("Complete")) {
+        if (fullText.includes("'A'")) completeTask('A');
+        else if (fullText.includes("'B'")) completeTask('B');
+        else if (fullText.includes("'C'")) completeTask('C');
+    }
+  });
+
+  // --------------------------------------------------------
+  // 4. 지도 (Map View) - [수정됨]
+  // --------------------------------------------------------
+  var mapCard = document.getElementById('map-card');
+  
+  // 1) 뷰어 생성
+  var viewer = new ROS2D.Viewer({
+    divID : 'map-canvas',
+    width : mapCard.clientWidth,
+    height : mapCard.clientHeight,
+    background: '#000000'
+  });
+
+  // 2) 지도 클라이언트 (OccupancyGrid)
+  var gridClient = new ROS2D.OccupancyGridClient({
+    ros : ros,
+    rootObject : viewer.scene, // 지도는 씬의 가장 아래에 배치
+    continuous : true 
+  });
+
+  // 3) 지도 로드 시 센터링 처리
+  gridClient.on('change', function() {
+    viewer.scaleToDimensions(gridClient.currentGrid.width, gridClient.currentGrid.height);
+    viewer.shift(gridClient.currentGrid.pose.position.x, gridClient.currentGrid.pose.position.y);
+    document.getElementById('map-msg').style.display = 'none';
+  });
+
+  // 4) 경로 (Path) 시각화 - 레이어 순서상 지도 위
+  var pathView = new ROS2D.PathShape({
+    ros : ros,
+    strokeSize : 0.05,
+    strokeColor : createjs.Graphics.getRGB(0, 255, 255, 0.7) // 밝은 하늘색
+  });
+  // ★ 중요: 뷰어 씬에 추가해야 보입니다.
+  viewer.scene.addChild(pathView);
+
+  var pathSub = new ROSLIB.Topic({
+    ros : ros,
+    name : '/plan', // Nav2 Global Plan
+    messageType : 'nav_msgs/Path'
+  });
+  pathSub.subscribe(function(message) {
+    pathView.setPath(message);
+  });
+
+  // 5) 로봇 아이콘 (Marker) - 레이어 순서상 가장 위
+  var robotIcon = new createjs.Container();
+  
+  // 로봇 본체 (파란색 사각형)
+  var bodyShape = new createjs.Shape();
+  bodyShape.graphics
+    .setStrokeStyle(0.02)
+    .beginStroke("#fff")
+    .beginFill("rgba(33, 150, 243, 0.9)")
+    .drawRect(-0.15, -0.15, 0.3, 0.3); // 30cm 크기 가정
+
+  // 로봇 방향 (흰색 화살표)
+  var arrowShape = new createjs.Shape();
+  arrowShape.graphics
+    .beginFill("#ffffff")
+    .moveTo(0.1, 0)
+    .lineTo(-0.05, 0.08)
+    .lineTo(-0.05, -0.08)
+    .closePath();
+
+  robotIcon.addChild(bodyShape, arrowShape);
+  
+  // ★ 중요: 로봇 아이콘을 씬에 추가 (기존 코드에 누락되어 있었음)
+  viewer.scene.addChild(robotIcon);
+
+  // 로봇 위치 구독 (/amcl_pose)
+  var poseSub = new ROSLIB.Topic({
+    ros : ros,
+    name : '/amcl_pose',
+    messageType : 'geometry_msgs/PoseWithCovarianceStamped'
+  });
+
+  poseSub.subscribe(function(message) {
+    // 좌표 업데이트 (EaselJS 좌표계 대응: y축 반전)
+    robotIcon.x = message.pose.pose.position.x;
+    robotIcon.y = -message.pose.pose.position.y;
+    
+    // 쿼터니언 -> Yaw 변환
+    var q = message.pose.pose.orientation;
+    var yaw = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+    
+    // 회전 적용 (도 단위 변환 + Canvas 좌표계 보정)
+    robotIcon.rotation = -yaw * (180.0 / Math.PI);
+  });
+
+  // 6) 창 크기 변경 대응
+  window.addEventListener('resize', () => {
+    // 컨테이너 크기 다시 읽기
+    var w = mapCard.clientWidth;
+    var h = mapCard.clientHeight;
+    
+    // 뷰어 크기 업데이트
+    viewer.width = w;
+    viewer.height = h;
+    
+    // 내부 캔버스 크기 강제 동기화
+    var canvas = document.querySelector('#map-canvas canvas');
+    if (canvas) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    
+    // 맵 스케일 재조정 (지도가 로드된 상태라면)
+    if (gridClient.currentGrid) {
+      viewer.scaleToDimensions(gridClient.currentGrid.width, gridClient.currentGrid.height);
+      viewer.shift(gridClient.currentGrid.pose.position.x, gridClient.currentGrid.pose.position.y);
+    }
+  });
+
+  // --------------------------------------------------------
+  // 5. 작업 카운터
+  // --------------------------------------------------------
+  let tasks = { A: 0, B: 0, C: 0 }; 
+  function completeTask(zone) {
+    if (tasks[zone] !== undefined) tasks[zone]++;
+    let total = tasks.A + tasks.B + tasks.C;
+    document.getElementById("count-a").innerText = tasks.A;
+    document.getElementById("count-b").innerText = tasks.B;
+    document.getElementById("count-c").innerText = tasks.C;
+    document.getElementById("count-total").innerText = total;
+  }
+
+</script>
+</body>
+</html>
